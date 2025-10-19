@@ -8,7 +8,7 @@ RESTful webservice created using Python Flask and SQLite for a Blogging website.
   2. ```pip install Flask-SQLAlchemy```
 
 ### Web Application
-
+#dfddf
 <div align='center'>
 <img src = 'templates/website.JPG' height="400px">
 </div>
