@@ -4,7 +4,7 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////home/al/Blogging-Website-using-Flask/blog.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite://///var/lib/jenkins/workspace/Test/blog.db'
 
 db = SQLAlchemy(app)
 
@@ -66,3 +66,4 @@ def deletepost():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
