@@ -344,8 +344,12 @@ tbody tr:hover {
   font-weight: bold;
 }
 
+.status-новый { background: #ffc107; color: #000; }
+.status-в-процессе { background: #17a2b8; color: #fff; }
+.status-выполнен { background: #28a745; color: #fff; }
+.status-отменен { background: #dc3545; color: #fff; }
 .status-new { background: #ffc107; color: #000; }
-.status-progress { background: #17a2b8; color: #fff; }
+.status-in-progress { background: #17a2b8; color: #fff; }
 .status-completed { background: #28a745; color: #fff; }
 .status-cancelled { background: #dc3545; color: #fff; }
 
