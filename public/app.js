@@ -58,7 +58,7 @@ function renderTable() {
 
 // Форматирование цены
 function formatPrice(price) {
-  return new Intl.NumberFormat('ru-RU').format(price) + ' ₽';
+  return new Intl.NumberFormat('ru-RU').format(price) + ' $';
 }
 
 // Обновление статистики
