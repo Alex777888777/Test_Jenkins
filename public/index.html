@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Панель управления - CRM Завод Тягачей</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🚚 CRM Завод Тягачей</h1>
+      <div class="user-info">
+        <span id="userRole"></span>
+        <button id="logoutBtn" class="btn btn-secondary">Выход</button>
+      </div>
+    </header>
+    
+    <main>
+      <!-- Статистика -->
+      <section class="stats-section">
+        <div class="stat-card">
+          <h3>Всего тягачей</h3>
+          <p id="totalTrucks" class="stat-value">0</p>
+        </div>
+        <div class="stat-card">
+          <h3>Средняя цена</h3>
+          <p id="avgPrice" class="stat-value">0 ₽</p>
+        </div>
+        <div class="stat-card">
+          <h3>В наличии</h3>
+          <p id="availableTrucks" class="stat-value">0</p>
+        </div>
+      </section>
+      
+      <!-- Графики -->
+      <section class="charts-section">
+        <div class="chart-container">
+          <h3>Распределение по годам</h3>
+          <canvas id="yearChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <h3>Статусы тягачей</h3>
+          <canvas id="statusChart"></canvas>
+        </div>
+      </section>
+      
+      <!-- Управление -->
+      <section class="controls-section">
+        <button id="addTruckBtn" class="btn btn-primary">+ Добавить тягач</button>
+      </section>
+      
+      <!-- Таблица тягачей -->
+      <section class="table-section">
+        <h2>Список тягачей</h2>
+        <table id="trucksTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Модель</th>
+              <th>Год</th>
+              <th>Цена (₽)</th>
+              <th>Статус</th>
+              <th>Мощность (л.с.)</th>
+              <th>Пробег (км)</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="trucksTableBody">
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+  
+  <!-- Модальное окно для добавления/редактирования -->
+  <div id="truckModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2 id="modalTitle">Добавить тягач</h2>
+      
+      <form id="truckForm">
+        <input type="hidden" id="truckId">
+        
+        <div class="form-group">
+          <label for="model">Модель</label>
+          <input type="text" id="model" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="year">Год выпуска</label>
+          <input type="number" id="year" min="2000" max="2030" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="price">Цена (₽)</label>
+          <input type="number" id="price" step="0.01" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="status">Статус</label>
+          <select id="status" required>
+            <option value="В наличии">В наличии</option>
+            <option value="Заказ">Заказ</option>
+            <option value="Продан">Продан</option>
+            <option value="Ремонт">Ремонт</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="enginePower">Мощность двигателя (л.с.)</label>
+          <input type="number" id="enginePower">
+        </div>
+        
+        <div class="form-group">
+          <label for="mileage">Пробег (км)</label>
+          <input type="number" id="mileage">
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <button type="button" id="cancelBtn" class="btn btn-secondary">Отмена</button>
+      </form>
+    </div>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html>

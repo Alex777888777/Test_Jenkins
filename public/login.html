@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Вход - CRM Завод Тягачей</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="login-page">
+  <div class="login-container">
+    <div class="login-box">
+      <h1>🚚 CRM Завод Тягачей</h1>
+      <h2>Вход в систему</h2>
+      
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">Логин</label>
+          <input type="text" id="username" name="username" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="password">Пароль</label>
+          <input type="password" id="password" name="password" required>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Войти</button>
+        
+        <div id="error-message" class="error-message"></div>
+      </form>
+      
+      <div class="login-hint">
+        <p><strong>Тестовые пользователи:</strong></p>
+        <ul>
+          <li>admin / admin123</li>
+          <li>manager / manager123</li>
+          <li>user / user123</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <script src="login.js"></script>
+</body>
+</html>
