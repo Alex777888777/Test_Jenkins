@@ -19,9 +19,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     const data = await response.json();
     
     if (data.success) {
-      // Сохраняем информацию о пользователе
       localStorage.setItem('user', JSON.stringify(data.user));
-      // Перенаправляем на главную страницу
       window.location.href = 'index.html';
     } else {
       errorMessage.textContent = data.message || 'Ошибка входа';

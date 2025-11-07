@@ -284,6 +284,12 @@ tbody tr:hover {
   width: 90%;
   max-width: 600px;
   position: relative;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-content.large {
+  max-width: 900px;
 }
 
 .close {
@@ -306,4 +312,92 @@ tbody tr:hover {
   margin-top: 10px;
   font-weight: bold;
   text-align: center;
+}
+
+/* Orders */
+.order-card {
+  background: white;
+  padding: 20px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.order-status {
+  display: inline-block;
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-size: 0.9em;
+  font-weight: bold;
+}
+
+.status-new { background: #ffc107; color: #000; }
+.status-progress { background: #17a2b8; color: #fff; }
+.status-completed { background: #28a745; color: #fff; }
+.status-cancelled { background: #dc3545; color: #fff; }
+
+/* Stages */
+.stage-item {
+  background: #f8f9fa;
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  border-left: 4px solid #667eea;
+}
+
+.stage-item.completed {
+  border-left-color: #28a745;
+}
+
+.stage-item.in-progress {
+  border-left-color: #ffc107;
+}
+
+.stage-controls {
+  margin-top: 10px;
+}
+
+.stage-controls select,
+.stage-controls button {
+  margin-right: 10px;
+}
+
+/* Parts list */
+.part-item {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.part-item select,
+.part-item input {
+  flex: 1;
+}
+
+.part-item button {
+  padding: 5px 10px;
+}
+
+textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
 }

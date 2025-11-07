@@ -1,6 +1,6 @@
 const API_URL = 'http://localhost:3000/api';
 let currentUser = null;
-let trucks = [];
+let clients = [], trucks = [], parts = [], orders = [];
 
 // Проверка авторизации
 function checkAuth() {
@@ -10,7 +10,25 @@ function checkAuth() {
     return;
   }
   currentUser = JSON.parse(userStr);
-  document.getElementById('userRole').textContent = `${currentUser.username} (${currentUser.role})`;
+  document.getElementById('userRole').textContent = `${currentUser.full_name} (${getRoleName(currentUser.role)})`;
+  initInterface();
+}
+
+function getRoleName(role) {
+  const names = { manager: 'Менеджер', worker: 'Работник', customer: 'Заказчик' };
+  return names[role] || role;
+}
+
+// Инициализация интерфейса по роли
+function initInterface() {
+  if (currentUser.role === 'manager') {
+    document.getElementById('managerSection').style.display = 'block';
+    document.getElementById('partsSection').style.display = 'block';
+    loadClients();
+    loadParts();
+  }
+  loadOrders();
+  loadStats();
 }
 
 // Выход
@@ -20,245 +38,380 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 });
 
 // Загрузка данных
-async function loadTrucks() {
-  try {
-    const response = await fetch(`${API_URL}/trucks`);
-    trucks = await response.json();
-    renderTable();
-    updateStats();
-    loadCharts();
-  } catch (error) {
-    console.error('Ошибка загрузки данных:', error);
-  }
+async function loadClients() {
+  const response = await fetch(`${API_URL}/clients`);
+  clients = await response.json();
+  renderClients();
 }
 
-// Отображение таблицы
-function renderTable() {
-  const tbody = document.getElementById('trucksTableBody');
-  tbody.innerHTML = '';
+async function loadParts() {
+  const response = await fetch(`${API_URL}/parts`);
+  parts = await response.json();
+  renderParts();
+}
+
+async function loadOrders() {
+  const response = await fetch(`${API_URL}/orders?role=${currentUser.role}&userId=${currentUser.id}`);
+  orders = await response.json();
+  renderOrders();
+}
+
+async function loadStats() {
+  const response = await fetch(`${API_URL}/stats`);
+  const stats = await response.json();
   
-  trucks.forEach(truck => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${truck.id}</td>
-      <td>${truck.model}</td>
-      <td>${truck.year}</td>
-      <td>${formatPrice(truck.price)}</td>
-      <td>${truck.status}</td>
-      <td>${truck.engine_power || '-'}</td>
-      <td>${truck.mileage || 0}</td>
-      <td>
-        <button class="btn btn-edit" onclick="editTruck(${truck.id})">Изменить</button>
-        <button class="btn btn-delete" onclick="deleteTruck(${truck.id})">Удалить</button>
-      </td>
-    `;
-    tbody.appendChild(row);
-  });
+  document.getElementById('totalOrders').textContent = stats.totalOrders;
+  document.getElementById('totalClients').textContent = stats.totalClients;
+  document.getElementById('avgPrice').textContent = formatPrice(stats.avgOrderPrice);
+  
+  renderOrdersChart(stats.ordersByStatus);
+  renderPartsChart(stats.partsByCategory);
 }
 
 // Форматирование цены
 function formatPrice(price) {
-  return new Intl.NumberFormat('ru-RU').format(price) + ' $';
+  return '$' + new Intl.NumberFormat('en-US').format(price || 0);
 }
 
-// Обновление статистики
-function updateStats() {
-  const total = trucks.length;
-  const available = trucks.filter(t => t.status === 'В наличии').length;
-  const avgPrice = trucks.length > 0 
-    ? trucks.reduce((sum, t) => sum + parseFloat(t.price), 0) / trucks.length 
-    : 0;
+// Рендеринг
+function renderClients() {
+  const tbody = document.getElementById('clientsTableBody');
+  tbody.innerHTML = '';
+  clients.forEach(client => {
+    const row = `<tr>
+      <td>${client.full_name}</td>
+      <td>${client.company || '-'}</td>
+      <td>${client.email || '-'}</td>
+      <td>${client.phone || '-'}</td>
+    </tr>`;
+    tbody.innerHTML += row;
+  });
+}
+
+function renderParts() {
+  const tbody = document.getElementById('partsTableBody');
+  tbody.innerHTML = '';
+  parts.forEach(part => {
+    const row = `<tr>
+      <td>${part.name}</td>
+      <td>${part.category}</td>
+      <td>${formatPrice(part.price)}</td>
+      <td>${part.stock}</td>
+    </tr>`;
+    tbody.innerHTML += row;
+  });
+}
+
+function renderOrders() {
+  const container = document.getElementById('ordersContainer');
+  container.innerHTML = '';
   
-  document.getElementById('totalTrucks').textContent = total;
-  document.getElementById('availableTrucks').textContent = available;
-  document.getElementById('avgPrice').textContent = formatPrice(avgPrice);
-}
-
-// Простые графики (псевдо-графики с CSS)
-async function loadCharts() {
-  try {
-    const response = await fetch(`${API_URL}/stats`);
-    const stats = await response.json();
-    
-    renderYearChart(stats.byYear);
-    renderStatusChart(stats.byStatus);
-  } catch (error) {
-    console.error('Ошибка загрузки статистики:', error);
+  if (orders.length === 0) {
+    container.innerHTML = '<p>Нет заказов</p>';
+    return;
   }
+  
+  orders.forEach(order => {
+    const statusClass = order.status.toLowerCase().replace(/\s/g, '-');
+    const card = document.createElement('div');
+    card.className = 'order-card';
+    card.onclick = () => viewOrder(order.id);
+    card.innerHTML = `
+      <div class="order-header">
+        <h3>Заказ #${order.order_number}</h3>
+        <span class="order-status status-${statusClass}">${order.status}</span>
+      </div>
+      <p><strong>Клиент:</strong> ${order.client_name} ${order.client_company ? '(' + order.client_company + ')' : ''}</p>
+      <p><strong>Тягач:</strong> ${order.truck_model}</p>
+      <p><strong>Конфигурация:</strong> ${order.configuration_name}</p>
+      <p><strong>Цена:</strong> ${formatPrice(order.total_price)}</p>
+      ${order.deadline ? `<p><strong>Дедлайн:</strong> ${new Date(order.deadline).toLocaleDateString()}</p>` : ''}
+    `;
+    container.appendChild(card);
+  });
 }
 
-function renderYearChart(data) {
-  const canvas = document.getElementById('yearChart');
+// Просмотр заказа
+async function viewOrder(orderId) {
+  const response = await fetch(`${API_URL}/orders/${orderId}`);
+  const order = await response.json();
+  
+  const modal = document.getElementById('orderDetailModal');
+  document.getElementById('orderNumber').textContent = order.order_number;
+  
+  // Детали заказа
+  document.getElementById('orderDetails').innerHTML = `
+    <p><strong>Клиент:</strong> ${order.client_name}</p>
+    <p><strong>Компания:</strong> ${order.client_company || '-'}</p>
+    <p><strong>Тягач:</strong> ${order.truck_model} (${order.truck_year})</p>
+    <p><strong>Конфигурация:</strong> ${order.configuration_name}</p>
+    <p><strong>Статус:</strong> ${order.status}</p>
+    <p><strong>Цена:</strong> ${formatPrice(order.total_price)}</p>
+    <p><strong>Менеджер:</strong> ${order.manager_name}</p>
+    ${order.notes ? `<p><strong>Примечания:</strong> ${order.notes}</p>` : ''}
+  `;
+  
+  // Этапы
+  const stagesDiv = document.getElementById('orderStages');
+  stagesDiv.innerHTML = '';
+  (order.stages || []).forEach(stage => {
+    const stageClass = stage.status === 'Завершен' ? 'completed' : stage.status === 'В процессе' ? 'in-progress' : '';
+    const stageDiv = document.createElement('div');
+    stageDiv.className = `stage-item ${stageClass}`;
+    stageDiv.innerHTML = `
+      <h4>${stage.stage_name}</h4>
+      <p><strong>Статус:</strong> ${stage.status}</p>
+      ${stage.worker_name ? `<p><strong>Исполнитель:</strong> ${stage.worker_name}</p>` : ''}
+      ${currentUser.role === 'worker' ? `
+        <div class="stage-controls">
+          <select id="stageStatus${stage.id}">
+            <option value="Ожидание" ${stage.status === 'Ожидание' ? 'selected' : ''}>Ожидание</option>
+            <option value="В процессе" ${stage.status === 'В процессе' ? 'selected' : ''}>В процессе</option>
+            <option value="Завершен" ${stage.status === 'Завершен' ? 'selected' : ''}>Завершен</option>
+          </select>
+          <button class="btn btn-primary" onclick="updateStage(${stage.id})">Обновить</button>
+        </div>
+      ` : ''}
+    `;
+    stagesDiv.appendChild(stageDiv);
+  });
+  
+  // Запчасти
+  const partsDiv = document.getElementById('orderPartDetails');
+  partsDiv.innerHTML = '<table><tr><th>Название</th><th>Категория</th><th>Кол-во</th><th>Цена</th></tr>';
+  (order.parts || []).forEach(part => {
+    partsDiv.innerHTML += `<tr>
+      <td>${part.part_name}</td>
+      <td>${part.category}</td>
+      <td>${part.quantity}</td>
+      <td>${formatPrice(part.price)}</td>
+    </tr>`;
+  });
+  partsDiv.innerHTML += '</table>';
+  
+  modal.style.display = 'block';
+}
+
+// Обновление этапа
+window.updateStage = async function(stageId) {
+  const status = document.getElementById(`stageStatus${stageId}`).value;
+  await fetch(`${API_URL}/order-stages/${stageId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, assigned_to: currentUser.id })
+  });
+  location.reload();
+};
+
+// Графики
+function renderOrdersChart(data) {
+  const canvas = document.getElementById('ordersChart');
+  drawPieChart(canvas, data.map(d => ({ label: d.status, value: parseInt(d.count) })));
+}
+
+function renderPartsChart(data) {
+  const canvas = document.getElementById('partsChart');
+  drawPieChart(canvas, data.map(d => ({ label: d.category, value: parseInt(d.count) })));
+}
+
+// Круговая диаграмма
+function drawPieChart(canvas, data) {
   const ctx = canvas.getContext('2d');
-  
   canvas.width = canvas.offsetWidth;
-  canvas.height = 200;
+  canvas.height = 250;
   
-  const maxCount = Math.max(...data.map(d => parseInt(d.count)));
-  const barWidth = canvas.width / data.length - 20;
-  const barHeightRatio = 150 / maxCount;
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  if (total === 0) return;
   
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2 - 20;
+  const radius = Math.min(centerX, centerY) - 30;
+  
+  const colors = ['#667eea', '#28a745', '#ffc107', '#dc3545', '#17a2b8', '#6c757d'];
+  let currentAngle = -Math.PI / 2;
   
   data.forEach((item, index) => {
-    const x = index * (barWidth + 20) + 10;
-    const height = parseInt(item.count) * barHeightRatio;
-    const y = 150 - height;
+    const sliceAngle = (item.value / total) * 2 * Math.PI;
     
-    // Рисуем столбец
-    ctx.fillStyle = '#667eea';
-    ctx.fillRect(x, y, barWidth, height);
+    ctx.fillStyle = colors[index % colors.length];
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+    ctx.closePath();
+    ctx.fill();
     
-    // Год
+    // Метка
+    const labelAngle = currentAngle + sliceAngle / 2;
+    const labelX = centerX + Math.cos(labelAngle) * (radius + 40);
+    const labelY = centerY + Math.sin(labelAngle) * (radius + 40);
+    
     ctx.fillStyle = '#333';
     ctx.font = '12px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(item.year, x + barWidth / 2, 170);
+    ctx.fillText(`${item.label}: ${item.value}`, labelX, labelY);
     
-    // Количество
-    ctx.fillText(item.count, x + barWidth / 2, y - 5);
+    currentAngle += sliceAngle;
   });
 }
 
-function renderStatusChart(data) {
-  const canvas = document.getElementById('statusChart');
-  const ctx = canvas.getContext('2d');
+// Модальные окна
+document.querySelectorAll('.close').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.getElementById(this.dataset.modal).style.display = 'none';
+  });
+});
+
+// Добавление клиента
+if (currentUser && currentUser.role === 'manager') {
+  document.getElementById('addClientBtn')?.addEventListener('click', () => {
+    document.getElementById('clientModal').style.display = 'block';
+  });
   
-  canvas.width = canvas.offsetWidth;
-  canvas.height = 200;
+  document.getElementById('clientForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await fetch(`${API_URL}/clients`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        full_name: document.getElementById('clientName').value,
+        company: document.getElementById('clientCompany').value,
+        email: document.getElementById('clientEmail').value,
+        phone: document.getElementById('clientPhone').value,
+        address: document.getElementById('clientAddress').value,
+        created_by: currentUser.id
+      })
+    });
+    document.getElementById('clientModal').style.display = 'none';
+    loadClients();
+  });
   
-  const maxCount = Math.max(...data.map(d => parseInt(d.count)));
-  const barWidth = canvas.width / data.length - 20;
-  const barHeightRatio = 150 / maxCount;
-  
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  const colors = ['#667eea', '#28a745', '#dc3545', '#ffc107'];
-  
-  data.forEach((item, index) => {
-    const x = index * (barWidth + 20) + 10;
-    const height = parseInt(item.count) * barHeightRatio;
-    const y = 150 - height;
+  // Создание заказа
+  document.getElementById('addOrderBtn')?.addEventListener('click', async () => {
+    // Загрузить тягачи и клиентов
+    const trucksRes = await fetch(`${API_URL}/trucks`);
+    trucks = await trucksRes.json();
     
-    // Рисуем столбец
-    ctx.fillStyle = colors[index % colors.length];
-    ctx.fillRect(x, y, barWidth, height);
-    
-    // Статус
-    ctx.fillStyle = '#333';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'center';
-    const words = item.status.split(' ');
-    words.forEach((word, i) => {
-      ctx.fillText(word, x + barWidth / 2, 165 + i * 12);
+    // Заполнить селекты
+    const clientSelect = document.getElementById('orderClient');
+    clientSelect.innerHTML = '<option value="">Выберите клиента</option>';
+    clients.forEach(c => {
+      clientSelect.innerHTML += `<option value="${c.id}">${c.full_name} ${c.company ? '(' + c.company + ')' : ''}</option>`;
     });
     
-    // Количество
-    ctx.fillText(item.count, x + barWidth / 2, y - 5);
+    const truckSelect = document.getElementById('orderTruck');
+    truckSelect.innerHTML = '<option value="">Выберите тягач</option>';
+    trucks.forEach(t => {
+      truckSelect.innerHTML += `<option value="${t.id}">${t.model} - ${formatPrice(t.base_price)}</option>`;
+    });
+    
+    document.getElementById('orderModal').style.display = 'block';
+  });
+  
+  // Выбор тягача загружает конфигурации
+  document.getElementById('orderTruck')?.addEventListener('change', async (e) => {
+    const truckId = e.target.value;
+    if (!truckId) return;
+    
+    const res = await fetch(`${API_URL}/configurations/${truckId}`);
+    const configs = await res.json();
+    
+    const configSelect = document.getElementById('orderConfig');
+    configSelect.innerHTML = '<option value="">Выберите конфигурацию</option>';
+    configs.forEach(c => {
+      configSelect.innerHTML += `<option value="${c.id}" data-price="${c.additional_price}">${c.name} (+${formatPrice(c.additional_price)})</option>`;
+    });
+    
+    updateOrderTotal();
+  });
+  
+  document.getElementById('orderConfig')?.addEventListener('change', updateOrderTotal);
+  
+  // Добавить запчасть
+  document.getElementById('addPartBtn')?.addEventListener('click', () => {
+    const partsList = document.getElementById('orderPartsList');
+    const partItem = document.createElement('div');
+    partItem.className = 'part-item';
+    partItem.innerHTML = `
+      <select class="part-select">
+        <option value="">Выберите запчасть</option>
+        ${parts.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} - ${formatPrice(p.price)}</option>`).join('')}
+      </select>
+      <input type="number" class="part-quantity" min="1" value="1" placeholder="Количество">
+      <button type="button" class="btn btn-delete" onclick="this.parentElement.remove(); updateOrderTotal();">Удалить</button>
+    `;
+    partsList.appendChild(partItem);
+    
+    partItem.querySelector('.part-select').addEventListener('change', updateOrderTotal);
+    partItem.querySelector('.part-quantity').addEventListener('input', updateOrderTotal);
+  });
+  
+  function updateOrderTotal() {
+    const truckId = document.getElementById('orderTruck').value;
+    const configId = document.getElementById('orderConfig').value;
+    
+    if (!truckId) return;
+    
+    const truck = trucks.find(t => t.id == truckId);
+    let total = parseFloat(truck.base_price);
+    
+    if (configId) {
+      const configOption = document.querySelector(`#orderConfig option[value="${configId}"]`);
+      total += parseFloat(configOption.dataset.price || 0);
+    }
+    
+    // Запчасти
+    document.querySelectorAll('.part-item').forEach(item => {
+      const partSelect = item.querySelector('.part-select');
+      const quantity = parseInt(item.querySelector('.part-quantity').value) || 0;
+      const selectedOption = partSelect.options[partSelect.selectedIndex];
+      if (selectedOption.value) {
+        total += parseFloat(selectedOption.dataset.price) * quantity;
+      }
+    });
+    
+    document.getElementById('orderTotal').textContent = formatPrice(total);
+  }
+  
+  // Отправка заказа
+  document.getElementById('orderForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const parts = [];
+    document.querySelectorAll('.part-item').forEach(item => {
+      const partId = item.querySelector('.part-select').value;
+      const quantity = item.querySelector('.part-quantity').value;
+      const price = item.querySelector('.part-select option:checked').dataset.price;
+      if (partId) {
+        parts.push({ part_id: partId, quantity: parseInt(quantity), price: parseFloat(price) });
+      }
+    });
+    
+    const truck = trucks.find(t => t.id == document.getElementById('orderTruck').value);
+    const configOption = document.querySelector('#orderConfig option:checked');
+    let totalPrice = parseFloat(truck.base_price) + parseFloat(configOption.dataset.price || 0);
+    parts.forEach(p => totalPrice += p.price * p.quantity);
+    
+    await fetch(`${API_URL}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: document.getElementById('orderClient').value,
+        truck_id: document.getElementById('orderTruck').value,
+        configuration_id: document.getElementById('orderConfig').value,
+        total_price: totalPrice,
+        status: 'Новый',
+        deadline: document.getElementById('orderDeadline').value || null,
+        manager_id: currentUser.id,
+        notes: document.getElementById('orderNotes').value,
+        parts
+      })
+    });
+    
+    document.getElementById('orderModal').style.display = 'none';
+    loadOrders();
+    loadStats();
   });
 }
-
-// Модальное окно
-const modal = document.getElementById('truckModal');
-const closeBtn = document.querySelector('.close');
-const cancelBtn = document.getElementById('cancelBtn');
-
-document.getElementById('addTruckBtn').addEventListener('click', () => {
-  document.getElementById('modalTitle').textContent = 'Добавить тягач';
-  document.getElementById('truckForm').reset();
-  document.getElementById('truckId').value = '';
-  modal.style.display = 'block';
-});
-
-closeBtn.addEventListener('click', () => {
-  modal.style.display = 'none';
-});
-
-cancelBtn.addEventListener('click', () => {
-  modal.style.display = 'none';
-});
-
-window.addEventListener('click', (e) => {
-  if (e.target === modal) {
-    modal.style.display = 'none';
-  }
-});
-
-// Редактирование
-window.editTruck = async (id) => {
-  const truck = trucks.find(t => t.id === id);
-  if (!truck) return;
-  
-  document.getElementById('modalTitle').textContent = 'Редактировать тягач';
-  document.getElementById('truckId').value = truck.id;
-  document.getElementById('model').value = truck.model;
-  document.getElementById('year').value = truck.year;
-  document.getElementById('price').value = truck.price;
-  document.getElementById('status').value = truck.status;
-  document.getElementById('enginePower').value = truck.engine_power || '';
-  document.getElementById('mileage').value = truck.mileage || 0;
-  
-  modal.style.display = 'block';
-};
-
-// Удаление
-window.deleteTruck = async (id) => {
-  if (!confirm('Вы уверены, что хотите удалить этот тягач?')) return;
-  
-  try {
-    const response = await fetch(`${API_URL}/trucks/${id}`, {
-      method: 'DELETE'
-    });
-    
-    if (response.ok) {
-      await loadTrucks();
-    } else {
-      alert('Ошибка удаления');
-    }
-  } catch (error) {
-    console.error('Ошибка удаления:', error);
-    alert('Ошибка удаления');
-  }
-};
-
-// Сохранение
-document.getElementById('truckForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
-  const id = document.getElementById('truckId').value;
-  const data = {
-    model: document.getElementById('model').value,
-    year: parseInt(document.getElementById('year').value),
-    price: parseFloat(document.getElementById('price').value),
-    status: document.getElementById('status').value,
-    engine_power: parseInt(document.getElementById('enginePower').value) || null,
-    mileage: parseInt(document.getElementById('mileage').value) || 0
-  };
-  
-  try {
-    const url = id ? `${API_URL}/trucks/${id}` : `${API_URL}/trucks`;
-    const method = id ? 'PUT' : 'POST';
-    
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-    
-    if (response.ok) {
-      modal.style.display = 'none';
-      await loadTrucks();
-    } else {
-      alert('Ошибка сохранения');
-    }
-  } catch (error) {
-    console.error('Ошибка сохранения:', error);
-    alert('Ошибка сохранения');
-  }
-});
 
 // Инициализация
 checkAuth();
-loadTrucks();
