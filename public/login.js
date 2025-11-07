@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api';
+//const API_URL = 'http://localhost:3000/api';
 
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -8,7 +8,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   const errorMessage = document.getElementById('error-message');
   
   try {
-    const response = await fetch(`${API_URL}/login`, {
+    const response = await fetch(`api/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

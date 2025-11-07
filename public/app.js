@@ -1,7 +1,3 @@
-const API_URL = 'http://localhost:3000/api';
-let currentUser = null;
-let clients = [], trucks = [], parts = [], orders = [];
-
 // Инициализация после загрузки DOM
 document.addEventListener('DOMContentLoaded', function() {
   checkAuth();
@@ -55,7 +51,7 @@ function initManagerHandlers() {
   
   document.getElementById('clientForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    await fetch(`${API_URL}/clients`, {
+    await fetch('/api/clients', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -82,7 +78,7 @@ function initManagerHandlers() {
     const truckId = e.target.value;
     if (!truckId) return;
     
-    const res = await fetch(`${API_URL}/configurations/${truckId}`);
+    const res = await fetch(`/api/configurations/${truckId}`);
     const configs = await res.json();
     
     const configSelect = document.getElementById('orderConfig');
@@ -134,7 +130,7 @@ function initManagerHandlers() {
     let totalPrice = parseFloat(truck.base_price) + parseFloat(configOption.dataset.price || 0);
     partItems.forEach(p => totalPrice += p.price * p.quantity);
     
-    await fetch(`${API_URL}/orders`, {
+    await fetch('/api/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -162,7 +158,7 @@ function initManagerHandlers() {
     e.preventDefault();
     
     const orderId = document.getElementById('editOrderId').value;
-    await fetch(`${API_URL}/orders/${orderId}`, {
+    await fetch(`/api/orders/${orderId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -189,7 +185,7 @@ function initModalHandlers() {
 
 // Подготовка модального окна заказа
 async function prepareOrderModal() {
-  const trucksRes = await fetch(`${API_URL}/trucks`);
+  const trucksRes = await fetch('/api/trucks');
   trucks = await trucksRes.json();
   
   const clientSelect = document.getElementById('orderClient');
@@ -236,31 +232,31 @@ function updateOrderTotal() {
 
 // Загрузка данных
 async function loadClients() {
-  const response = await fetch(`${API_URL}/clients`);
+  const response = await fetch('/api/clients');
   clients = await response.json();
   renderClients();
 }
 
 async function loadTrucks() {
-  const response = await fetch(`${API_URL}/trucks`);
+  const response = await fetch('/api/trucks');
   trucks = await response.json();
   renderTrucks();
 }
 
 async function loadParts() {
-  const response = await fetch(`${API_URL}/parts`);
+  const response = await fetch('/api/parts');
   parts = await response.json();
   renderParts();
 }
 
 async function loadOrders() {
-  const response = await fetch(`${API_URL}/orders?role=${currentUser.role}&userId=${currentUser.id}`);
+  const response = await fetch(`/api/orders?role=${currentUser.role}&userId=${currentUser.id}`);
   orders = await response.json();
   renderOrders();
 }
 
 async function loadStats() {
-  const response = await fetch(`${API_URL}/stats`);
+  const response = await fetch('/api/stats');
   const stats = await response.json();
   
   document.getElementById('totalOrders').textContent = stats.totalOrders;
@@ -352,7 +348,7 @@ function renderOrders() {
 
 // Просмотр заказа
 async function viewOrder(orderId) {
-  const response = await fetch(`${API_URL}/orders/${orderId}`);
+  const response = await fetch(`/api/orders/${orderId}`);
   const order = await response.json();
   
   const modal = document.getElementById('orderDetailModal');
@@ -426,7 +422,7 @@ async function viewOrder(orderId) {
 // Обновление этапа (для работника)
 window.updateStage = async function(stageId) {
   const status = document.getElementById(`stageStatus${stageId}`).value;
-  await fetch(`${API_URL}/order-stages/${stageId}`, {
+  await fetch(`/api/order-stages/${stageId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, assigned_to: currentUser.id })
