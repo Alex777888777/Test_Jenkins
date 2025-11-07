@@ -21,13 +21,14 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-// API: Вход пользователя
+// ============= АУТЕНТИФИКАЦИЯ =============
+
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   
   try {
     const result = await pool.query(
-      'SELECT id, username, role FROM users WHERE username = $1 AND password = $2',
+      'SELECT id, username, role, full_name, email FROM users WHERE username = $1 AND password = $2',
       [username, password]
     );
     
@@ -42,12 +43,43 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// API: Получить все тягачи
-app.get('/api/trucks', async (req, res) => {
+// ============= КЛИЕНТЫ =============
+
+app.get('/api/clients', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT c.*, u.username as created_by_name 
+      FROM clients c 
+      LEFT JOIN users u ON c.created_by = u.id 
+      ORDER BY c.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Ошибка получения клиентов:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+app.post('/api/clients', async (req, res) => {
+  const { full_name, company, email, phone, address, created_by } = req.body;
+  
   try {
     const result = await pool.query(
-      'SELECT * FROM trucks ORDER BY created_at DESC'
+      'INSERT INTO clients (full_name, company, email, phone, address, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [full_name, company, email, phone, address, created_by]
     );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Ошибка добавления клиента:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// ============= ТЯГАЧИ =============
+
+app.get('/api/trucks', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM trucks ORDER BY created_at DESC');
     res.json(result.rows);
   } catch (error) {
     console.error('Ошибка получения тягачей:', error);
@@ -55,105 +87,285 @@ app.get('/api/trucks', async (req, res) => {
   }
 });
 
-// API: Получить тягач по ID
-app.get('/api/trucks/:id', async (req, res) => {
+// ============= КОНФИГУРАЦИИ =============
+
+app.get('/api/configurations/:truckId', async (req, res) => {
+  const { truckId } = req.params;
+  
+  try {
+    const result = await pool.query(
+      'SELECT * FROM truck_configurations WHERE truck_id = $1',
+      [truckId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Ошибка получения конфигураций:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// ============= ЗАПЧАСТИ =============
+
+app.get('/api/parts', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM parts ORDER BY category, name');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Ошибка получения запчастей:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// ============= ЗАКАЗЫ =============
+
+app.get('/api/orders', async (req, res) => {
+  const { role, userId } = req.query;
+  
+  try {
+    let query = `
+      SELECT o.*, 
+             c.full_name as client_name,
+             c.company as client_company,
+             t.model as truck_model,
+             tc.name as configuration_name,
+             u.full_name as manager_name
+      FROM orders o
+      LEFT JOIN clients c ON o.client_id = c.id
+      LEFT JOIN trucks t ON o.truck_id = t.id
+      LEFT JOIN truck_configurations tc ON o.configuration_id = tc.id
+      LEFT JOIN users u ON o.manager_id = u.id
+    `;
+    
+    // Для заказчика показываем только его заказы (через client_id связанный с user_id)
+    if (role === 'customer') {
+      query += ` WHERE c.id = (SELECT id FROM clients WHERE created_by = $1 LIMIT 1)`;
+      const result = await pool.query(query + ' ORDER BY o.created_at DESC', [userId]);
+      return res.json(result.rows);
+    }
+    
+    const result = await pool.query(query + ' ORDER BY o.created_at DESC');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Ошибка получения заказов:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+app.get('/api/orders/:id', async (req, res) => {
   const { id } = req.params;
   
   try {
-    const result = await pool.query('SELECT * FROM trucks WHERE id = $1', [id]);
+    const orderResult = await pool.query(`
+      SELECT o.*, 
+             c.full_name as client_name,
+             c.company as client_company,
+             c.email as client_email,
+             c.phone as client_phone,
+             t.model as truck_model,
+             t.year as truck_year,
+             t.base_price as truck_base_price,
+             tc.name as configuration_name,
+             tc.additional_price as configuration_price,
+             u.full_name as manager_name
+      FROM orders o
+      LEFT JOIN clients c ON o.client_id = c.id
+      LEFT JOIN trucks t ON o.truck_id = t.id
+      LEFT JOIN truck_configurations tc ON o.configuration_id = tc.id
+      LEFT JOIN users u ON o.manager_id = u.id
+      WHERE o.id = $1
+    `, [id]);
+    
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Заказ не найден' });
+    }
+    
+    // Получаем этапы заказа
+    const stagesResult = await pool.query(`
+      SELECT s.*, u.full_name as worker_name
+      FROM order_stages s
+      LEFT JOIN users u ON s.assigned_to = u.id
+      WHERE s.order_id = $1
+      ORDER BY s.id
+    `, [id]);
+    
+    // Получаем запчасти заказа
+    const partsResult = await pool.query(`
+      SELECT op.*, p.name as part_name, p.category
+      FROM order_parts op
+      LEFT JOIN parts p ON op.part_id = p.id
+      WHERE op.order_id = $1
+    `, [id]);
+    
+    res.json({
+      ...orderResult.rows[0],
+      stages: stagesResult.rows,
+      parts: partsResult.rows
+    });
+  } catch (error) {
+    console.error('Ошибка получения заказа:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+app.post('/api/orders', async (req, res) => {
+  const { client_id, truck_id, configuration_id, total_price, status, deadline, manager_id, notes, parts } = req.body;
+  
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // Генерируем номер заказа
+    const orderNumber = 'ORD-' + Date.now();
+    
+    // Создаем заказ
+    const orderResult = await client.query(
+      `INSERT INTO orders (order_number, client_id, truck_id, configuration_id, total_price, status, deadline, manager_id, notes) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [orderNumber, client_id, truck_id, configuration_id, total_price, status, deadline, manager_id, notes]
+    );
+    
+    const orderId = orderResult.rows[0].id;
+    
+    // Добавляем запчасти
+    if (parts && parts.length > 0) {
+      for (const part of parts) {
+        await client.query(
+          'INSERT INTO order_parts (order_id, part_id, quantity, price) VALUES ($1, $2, $3, $4)',
+          [orderId, part.part_id, part.quantity, part.price]
+        );
+      }
+    }
+    
+    // Создаем стандартные этапы
+    const stages = [
+      'Подтверждение заказа',
+      'Закупка компонентов',
+      'Сборка',
+      'Контроль качества',
+      'Доставка'
+    ];
+    
+    for (const stage of stages) {
+      await client.query(
+        'INSERT INTO order_stages (order_id, stage_name, status) VALUES ($1, $2, $3)',
+        [orderId, stage, 'Ожидание']
+      );
+    }
+    
+    await client.query('COMMIT');
+    res.status(201).json(orderResult.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Ошибка создания заказа:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  } finally {
+    client.release();
+  }
+});
+
+app.put('/api/orders/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status, deadline, notes } = req.body;
+  
+  try {
+    const result = await pool.query(
+      'UPDATE orders SET status = $1, deadline = $2, notes = $3 WHERE id = $4 RETURNING *',
+      [status, deadline, notes, id]
+    );
     
     if (result.rows.length > 0) {
       res.json(result.rows[0]);
     } else {
-      res.status(404).json({ error: 'Тягач не найден' });
+      res.status(404).json({ error: 'Заказ не найден' });
     }
   } catch (error) {
-    console.error('Ошибка получения тягача:', error);
+    console.error('Ошибка обновления заказа:', error);
     res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 
-// API: Добавить новый тягач
-app.post('/api/trucks', async (req, res) => {
-  const { model, year, price, status, engine_power, mileage } = req.body;
-  
-  try {
-    const result = await pool.query(
-      'INSERT INTO trucks (model, year, price, status, engine_power, mileage) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [model, year, price, status, engine_power, mileage]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Ошибка добавления тягача:', error);
-    res.status(500).json({ error: 'Ошибка сервера' });
-  }
-});
+// ============= ЭТАПЫ ЗАКАЗОВ =============
 
-// API: Обновить тягач
-app.put('/api/trucks/:id', async (req, res) => {
+app.put('/api/order-stages/:id', async (req, res) => {
   const { id } = req.params;
-  const { model, year, price, status, engine_power, mileage } = req.body;
+  const { status, assigned_to, notes } = req.body;
   
   try {
-    const result = await pool.query(
-      'UPDATE trucks SET model = $1, year = $2, price = $3, status = $4, engine_power = $5, mileage = $6 WHERE id = $7 RETURNING *',
-      [model, year, price, status, engine_power, mileage, id]
-    );
+    let query = 'UPDATE order_stages SET status = $1, notes = $2';
+    let params = [status, notes];
+    
+    // Если этап начат, устанавливаем started_at
+    if (status === 'В процессе' || status === 'In Progress') {
+      query += ', started_at = CURRENT_TIMESTAMP';
+    }
+    
+    // Если этап завершен, устанавливаем completed_at
+    if (status === 'Завершен' || status === 'Completed') {
+      query += ', completed_at = CURRENT_TIMESTAMP';
+    }
+    
+    if (assigned_to) {
+      query += ', assigned_to = $3';
+      params.push(assigned_to);
+      query += ' WHERE id = $4 RETURNING *';
+      params.push(id);
+    } else {
+      query += ' WHERE id = $3 RETURNING *';
+      params.push(id);
+    }
+    
+    const result = await pool.query(query, params);
     
     if (result.rows.length > 0) {
       res.json(result.rows[0]);
     } else {
-      res.status(404).json({ error: 'Тягач не найден' });
+      res.status(404).json({ error: 'Этап не найден' });
     }
   } catch (error) {
-    console.error('Ошибка обновления тягача:', error);
+    console.error('Ошибка обновления этапа:', error);
     res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
 
-// API: Удалить тягач
-app.delete('/api/trucks/:id', async (req, res) => {
-  const { id } = req.params;
-  
-  try {
-    const result = await pool.query('DELETE FROM trucks WHERE id = $1 RETURNING *', [id]);
-    
-    if (result.rows.length > 0) {
-      res.json({ success: true, message: 'Тягач удален' });
-    } else {
-      res.status(404).json({ error: 'Тягач не найден' });
-    }
-  } catch (error) {
-    console.error('Ошибка удаления тягача:', error);
-    res.status(500).json({ error: 'Ошибка сервера' });
-  }
-});
+// ============= СТАТИСТИКА =============
 
-// API: Статистика для графиков
 app.get('/api/stats', async (req, res) => {
   try {
-    // Количество по годам
-    const yearStats = await pool.query(`
-      SELECT year, COUNT(*) as count 
-      FROM trucks 
-      GROUP BY year 
-      ORDER BY year
-    `);
-    
-    // Количество по статусам
-    const statusStats = await pool.query(`
+    // Статистика по заказам
+    const orderStats = await pool.query(`
       SELECT status, COUNT(*) as count 
-      FROM trucks 
+      FROM orders 
       GROUP BY status
     `);
     
-    // Средняя цена
-    const avgPrice = await pool.query('SELECT AVG(price) as avg FROM trucks');
+    // Статистика по запчастям (категории)
+    const partsStats = await pool.query(`
+      SELECT category, COUNT(*) as count 
+      FROM parts 
+      GROUP BY category
+    `);
+    
+    // Общая статистика
+    const totalOrders = await pool.query('SELECT COUNT(*) as count FROM orders');
+    const totalClients = await pool.query('SELECT COUNT(*) as count FROM clients');
+    const avgOrderPrice = await pool.query('SELECT AVG(total_price) as avg FROM orders');
+    
+    // Статистика по использованию запчастей в заказах
+    const partsUsage = await pool.query(`
+      SELECT p.category, SUM(op.quantity) as total_quantity
+      FROM order_parts op
+      JOIN parts p ON op.part_id = p.id
+      GROUP BY p.category
+    `);
     
     res.json({
-      byYear: yearStats.rows,
-      byStatus: statusStats.rows,
-      avgPrice: avgPrice.rows[0].avg
+      ordersByStatus: orderStats.rows,
+      partsByCategory: partsStats.rows,
+      partsUsage: partsUsage.rows,
+      totalOrders: totalOrders.rows[0].count,
+      totalClients: totalClients.rows[0].count,
+      avgOrderPrice: avgOrderPrice.rows[0].avg || 0
     });
   } catch (error) {
     console.error('Ошибка получения статистики:', error);

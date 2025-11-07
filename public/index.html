@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Панель управления - CRM Завод Тягачей</title>
+  <title>CRM Завод Тягачей</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -20,106 +20,158 @@
       <!-- Статистика -->
       <section class="stats-section">
         <div class="stat-card">
-          <h3>Всего тягачей</h3>
-          <p id="totalTrucks" class="stat-value">0</p>
+          <h3>Всего заказов</h3>
+          <p id="totalOrders" class="stat-value">0</p>
+        </div>
+        <div class="stat-card">
+          <h3>Клиентов</h3>
+          <p id="totalClients" class="stat-value">0</p>
         </div>
         <div class="stat-card">
           <h3>Средняя цена</h3>
-          <p id="avgPrice" class="stat-value">0 $</p>
-        </div>
-        <div class="stat-card">
-          <h3>В наличии</h3>
-          <p id="availableTrucks" class="stat-value">0</p>
+          <p id="avgPrice" class="stat-value">$0</p>
         </div>
       </section>
       
       <!-- Графики -->
       <section class="charts-section">
         <div class="chart-container">
-          <h3>Распределение по годам</h3>
-          <canvas id="yearChart"></canvas>
+          <h3>Статусы заказов</h3>
+          <canvas id="ordersChart"></canvas>
         </div>
         <div class="chart-container">
-          <h3>Статусы тягачей</h3>
-          <canvas id="statusChart"></canvas>
+          <h3>Запчасти по категориям</h3>
+          <canvas id="partsChart"></canvas>
         </div>
       </section>
       
-      <!-- Управление -->
-      <section class="controls-section">
-        <button id="addTruckBtn" class="btn btn-primary">+ Добавить тягач</button>
-      </section>
-      
-      <!-- Таблица тягачей -->
-      <section class="table-section">
-        <h2>Список тягачей</h2>
-        <table id="trucksTable">
+      <!-- Управление (для менеджера) -->
+      <section id="managerSection" style="display:none;">
+        <h2>Управление</h2>
+        <button id="addClientBtn" class="btn btn-primary">+ Добавить клиента</button>
+        <button id="addOrderBtn" class="btn btn-primary">+ Создать заказ</button>
+        
+        <h3 style="margin-top: 30px;">Клиенты</h3>
+        <table id="clientsTable">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Модель</th>
-              <th>Год</th>
-              <th>Цена ($)</th>
-              <th>Статус</th>
-              <th>Мощность (л.с.)</th>
-              <th>Пробег (км)</th>
-              <th>Действия</th>
+              <th>ФИО</th>
+              <th>Компания</th>
+              <th>Email</th>
+              <th>Телефон</th>
             </tr>
           </thead>
-          <tbody id="trucksTableBody">
-          </tbody>
+          <tbody id="clientsTableBody"></tbody>
+        </table>
+      </section>
+      
+      <!-- Заказы -->
+      <section class="orders-section">
+        <h2>Заказы</h2>
+        <div id="ordersContainer"></div>
+      </section>
+      
+      <!-- Запчасти (для справки) -->
+      <section id="partsSection" style="display:none;">
+        <h2>Каталог запчастей</h2>
+        <table id="partsTable">
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Категория</th>
+              <th>Цена</th>
+              <th>На складе</th>
+            </tr>
+          </thead>
+          <tbody id="partsTableBody"></tbody>
         </table>
       </section>
     </main>
   </div>
   
-  <!-- Модальное окно для добавления/редактирования -->
-  <div id="truckModal" class="modal">
+  <!-- Модальное окно для клиента -->
+  <div id="clientModal" class="modal">
     <div class="modal-content">
-      <span class="close">&times;</span>
-      <h2 id="modalTitle">Добавить тягач</h2>
-      
-      <form id="truckForm">
-        <input type="hidden" id="truckId">
-        
+      <span class="close" data-modal="clientModal">&times;</span>
+      <h2>Добавить клиента</h2>
+      <form id="clientForm">
         <div class="form-group">
-          <label for="model">Модель</label>
-          <input type="text" id="model" required>
+          <label>ФИО</label>
+          <input type="text" id="clientName" required>
         </div>
-        
         <div class="form-group">
-          <label for="year">Год выпуска</label>
-          <input type="number" id="year" min="2000" max="2030" required>
+          <label>Компания</label>
+          <input type="text" id="clientCompany">
         </div>
-        
         <div class="form-group">
-          <label for="price">Цена ($)</label>
-          <input type="number" id="price" step="0.01" required>
+          <label>Email</label>
+          <input type="email" id="clientEmail">
         </div>
-        
         <div class="form-group">
-          <label for="status">Статус</label>
-          <select id="status" required>
-            <option value="В наличии">В наличии</option>
-            <option value="Заказ">Заказ</option>
-            <option value="Продан">Продан</option>
-            <option value="Ремонт">Ремонт</option>
-          </select>
+          <label>Телефон</label>
+          <input type="text" id="clientPhone">
         </div>
-        
         <div class="form-group">
-          <label for="enginePower">Мощность двигателя (л.с.)</label>
-          <input type="number" id="enginePower">
+          <label>Адрес</label>
+          <textarea id="clientAddress"></textarea>
         </div>
-        
-        <div class="form-group">
-          <label for="mileage">Пробег (км)</label>
-          <input type="number" id="mileage">
-        </div>
-        
         <button type="submit" class="btn btn-primary">Сохранить</button>
-        <button type="button" id="cancelBtn" class="btn btn-secondary">Отмена</button>
       </form>
+    </div>
+  </div>
+  
+  <!-- Модальное окно для заказа -->
+  <div id="orderModal" class="modal">
+    <div class="modal-content">
+      <span class="close" data-modal="orderModal">&times;</span>
+      <h2 id="orderModalTitle">Создать заказ</h2>
+      <form id="orderForm">
+        <div class="form-group">
+          <label>Клиент</label>
+          <select id="orderClient" required></select>
+        </div>
+        <div class="form-group">
+          <label>Тягач</label>
+          <select id="orderTruck" required></select>
+        </div>
+        <div class="form-group">
+          <label>Конфигурация</label>
+          <select id="orderConfig" required></select>
+        </div>
+        <div class="form-group">
+          <label>Дедлайн</label>
+          <input type="date" id="orderDeadline">
+        </div>
+        <div class="form-group">
+          <label>Примечания</label>
+          <textarea id="orderNotes"></textarea>
+        </div>
+        <div id="orderPartsSection">
+          <h4>Запчасти</h4>
+          <div id="orderPartsList"></div>
+          <button type="button" id="addPartBtn" class="btn btn-secondary">+ Добавить запчасть</button>
+        </div>
+        <div class="form-group">
+          <label>Итого:</label>
+          <h3 id="orderTotal">$0</h3>
+        </div>
+        <button type="submit" class="btn btn-primary">Создать заказ</button>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Модальное окно детали заказа -->
+  <div id="orderDetailModal" class="modal">
+    <div class="modal-content large">
+      <span class="close" data-modal="orderDetailModal">&times;</span>
+      <h2>Детали заказа #<span id="orderNumber"></span></h2>
+      <div id="orderDetails"></div>
+      
+      <h3>Этапы выполнения</h3>
+      <div id="orderStages"></div>
+      
+      <h3>Запчасти</h3>
+      <div id="orderPartDetails"></div>
     </div>
   </div>
   
