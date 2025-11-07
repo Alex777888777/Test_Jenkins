@@ -2,6 +2,11 @@ const API_URL = 'http://localhost:3000/api';
 let currentUser = null;
 let clients = [], trucks = [], parts = [], orders = [];
 
+// Инициализация после загрузки DOM
+document.addEventListener('DOMContentLoaded', function() {
+  checkAuth();
+});
+
 // Проверка авторизации
 function checkAuth() {
   const userStr = localStorage.getItem('user');
@@ -11,6 +16,13 @@ function checkAuth() {
   }
   currentUser = JSON.parse(userStr);
   document.getElementById('userRole').textContent = `${currentUser.full_name} (${getRoleName(currentUser.role)})`;
+  
+  // Выход
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+  });
+  
   initInterface();
 }
 
@@ -20,28 +32,219 @@ function getRoleName(role) {
 }
 
 // Инициализация интерфейса по роли
-function initInterface() {
+async function initInterface() {
   if (currentUser.role === 'manager') {
     document.getElementById('managerSection').style.display = 'block';
     document.getElementById('partsSection').style.display = 'block';
-    loadClients();
-    loadParts();
+    await loadClients();
+    await loadParts();
+    await loadTrucks();
+    initManagerHandlers();
   }
-  loadOrders();
-  loadStats();
+  await loadOrders();
+  await loadStats();
+  initModalHandlers();
 }
 
-// Выход
-document.getElementById('logoutBtn').addEventListener('click', () => {
-  localStorage.removeItem('user');
-  window.location.href = 'login.html';
-});
+// Инициализация обработчиков для менеджера
+function initManagerHandlers() {
+  // Добавление клиента
+  document.getElementById('addClientBtn').addEventListener('click', () => {
+    document.getElementById('clientModal').style.display = 'block';
+  });
+  
+  document.getElementById('clientForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await fetch(`${API_URL}/clients`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        full_name: document.getElementById('clientName').value,
+        company: document.getElementById('clientCompany').value,
+        email: document.getElementById('clientEmail').value,
+        phone: document.getElementById('clientPhone').value,
+        address: document.getElementById('clientAddress').value,
+        created_by: currentUser.id
+      })
+    });
+    document.getElementById('clientModal').style.display = 'none';
+    document.getElementById('clientForm').reset();
+    await loadClients();
+  });
+  
+  // Создание заказа
+  document.getElementById('addOrderBtn').addEventListener('click', async () => {
+    await prepareOrderModal();
+  });
+  
+  // Выбор тягача загружает конфигурации
+  document.getElementById('orderTruck').addEventListener('change', async (e) => {
+    const truckId = e.target.value;
+    if (!truckId) return;
+    
+    const res = await fetch(`${API_URL}/configurations/${truckId}`);
+    const configs = await res.json();
+    
+    const configSelect = document.getElementById('orderConfig');
+    configSelect.innerHTML = '<option value="">Выберите конфигурацию</option>';
+    configs.forEach(c => {
+      configSelect.innerHTML += `<option value="${c.id}" data-price="${c.additional_price}">${c.name} (+${formatPrice(c.additional_price)})</option>`;
+    });
+    
+    updateOrderTotal();
+  });
+  
+  document.getElementById('orderConfig').addEventListener('change', updateOrderTotal);
+  
+  // Добавить запчасть
+  document.getElementById('addPartBtn').addEventListener('click', () => {
+    const partsList = document.getElementById('orderPartsList');
+    const partItem = document.createElement('div');
+    partItem.className = 'part-item';
+    partItem.innerHTML = `
+      <select class="part-select">
+        <option value="">Выберите запчасть</option>
+        ${parts.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} - ${formatPrice(p.price)}</option>`).join('')}
+      </select>
+      <input type="number" class="part-quantity" min="1" value="1" placeholder="Количество">
+      <button type="button" class="btn btn-delete" onclick="this.parentElement.remove(); updateOrderTotal();">Удалить</button>
+    `;
+    partsList.appendChild(partItem);
+    
+    partItem.querySelector('.part-select').addEventListener('change', updateOrderTotal);
+    partItem.querySelector('.part-quantity').addEventListener('input', updateOrderTotal);
+  });
+  
+  // Отправка заказа
+  document.getElementById('orderForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const partItems = [];
+    document.querySelectorAll('.part-item').forEach(item => {
+      const partId = item.querySelector('.part-select').value;
+      const quantity = item.querySelector('.part-quantity').value;
+      const price = item.querySelector('.part-select option:checked').dataset.price;
+      if (partId) {
+        partItems.push({ part_id: partId, quantity: parseInt(quantity), price: parseFloat(price) });
+      }
+    });
+    
+    const truck = trucks.find(t => t.id == document.getElementById('orderTruck').value);
+    const configOption = document.querySelector('#orderConfig option:checked');
+    let totalPrice = parseFloat(truck.base_price) + parseFloat(configOption.dataset.price || 0);
+    partItems.forEach(p => totalPrice += p.price * p.quantity);
+    
+    await fetch(`${API_URL}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: document.getElementById('orderClient').value,
+        truck_id: document.getElementById('orderTruck').value,
+        configuration_id: document.getElementById('orderConfig').value,
+        total_price: totalPrice,
+        status: 'Новый',
+        deadline: document.getElementById('orderDeadline').value || null,
+        manager_id: currentUser.id,
+        notes: document.getElementById('orderNotes').value,
+        parts: partItems
+      })
+    });
+    
+    document.getElementById('orderModal').style.display = 'none';
+    document.getElementById('orderForm').reset();
+    document.getElementById('orderPartsList').innerHTML = '';
+    await loadOrders();
+    await loadStats();
+  });
+  
+  // Редактирование заказа
+  document.getElementById('editOrderForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const orderId = document.getElementById('editOrderId').value;
+    await fetch(`${API_URL}/orders/${orderId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: document.getElementById('editOrderStatus').value,
+        deadline: document.getElementById('editOrderDeadline').value,
+        notes: document.getElementById('editOrderNotes').value
+      })
+    });
+    
+    document.getElementById('orderDetailModal').style.display = 'none';
+    await loadOrders();
+    await loadStats();
+  });
+}
+
+// Инициализация обработчиков модальных окон
+function initModalHandlers() {
+  document.querySelectorAll('.close').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.getElementById(this.dataset.modal).style.display = 'none';
+    });
+  });
+}
+
+// Подготовка модального окна заказа
+async function prepareOrderModal() {
+  const trucksRes = await fetch(`${API_URL}/trucks`);
+  trucks = await trucksRes.json();
+  
+  const clientSelect = document.getElementById('orderClient');
+  clientSelect.innerHTML = '<option value="">Выберите клиента</option>';
+  clients.forEach(c => {
+    clientSelect.innerHTML += `<option value="${c.id}">${c.full_name} ${c.company ? '(' + c.company + ')' : ''}</option>`;
+  });
+  
+  const truckSelect = document.getElementById('orderTruck');
+  truckSelect.innerHTML = '<option value="">Выберите тягач</option>';
+  trucks.forEach(t => {
+    truckSelect.innerHTML += `<option value="${t.id}">${t.model} - ${formatPrice(t.base_price)}</option>`;
+  });
+  
+  document.getElementById('orderPartsList').innerHTML = '';
+  document.getElementById('orderModal').style.display = 'block';
+}
+
+function updateOrderTotal() {
+  const truckId = document.getElementById('orderTruck').value;
+  const configId = document.getElementById('orderConfig').value;
+  
+  if (!truckId) return;
+  
+  const truck = trucks.find(t => t.id == truckId);
+  let total = parseFloat(truck.base_price);
+  
+  if (configId) {
+    const configOption = document.querySelector(`#orderConfig option[value="${configId}"]`);
+    total += parseFloat(configOption.dataset.price || 0);
+  }
+  
+  document.querySelectorAll('.part-item').forEach(item => {
+    const partSelect = item.querySelector('.part-select');
+    const quantity = parseInt(item.querySelector('.part-quantity').value) || 0;
+    const selectedOption = partSelect.options[partSelect.selectedIndex];
+    if (selectedOption.value) {
+      total += parseFloat(selectedOption.dataset.price) * quantity;
+    }
+  });
+  
+  document.getElementById('orderTotal').textContent = formatPrice(total);
+}
 
 // Загрузка данных
 async function loadClients() {
   const response = await fetch(`${API_URL}/clients`);
   clients = await response.json();
   renderClients();
+}
+
+async function loadTrucks() {
+  const response = await fetch(`${API_URL}/trucks`);
+  trucks = await response.json();
+  renderTrucks();
 }
 
 async function loadParts() {
@@ -74,6 +277,22 @@ function formatPrice(price) {
 }
 
 // Рендеринг
+function renderTrucks() {
+  const tbody = document.getElementById('trucksTableBody');
+  tbody.innerHTML = '';
+  trucks.forEach(truck => {
+    const row = `<tr>
+      <td>${truck.id}</td>
+      <td>${truck.model}</td>
+      <td>${truck.year}</td>
+      <td>${formatPrice(truck.base_price)}</td>
+      <td>${truck.engine_power || '-'}</td>
+      <td>${truck.description || '-'}</td>
+    </tr>`;
+    tbody.innerHTML += row;
+  });
+}
+
 function renderClients() {
   const tbody = document.getElementById('clientsTableBody');
   tbody.innerHTML = '';
@@ -148,8 +367,20 @@ async function viewOrder(orderId) {
     <p><strong>Статус:</strong> ${order.status}</p>
     <p><strong>Цена:</strong> ${formatPrice(order.total_price)}</p>
     <p><strong>Менеджер:</strong> ${order.manager_name}</p>
+    ${order.deadline ? `<p><strong>Дедлайн:</strong> ${new Date(order.deadline).toLocaleDateString()}</p>` : ''}
     ${order.notes ? `<p><strong>Примечания:</strong> ${order.notes}</p>` : ''}
   `;
+  
+  // Показать форму редактирования только для менеджера
+  if (currentUser.role === 'manager') {
+    document.getElementById('editOrderSection').style.display = 'block';
+    document.getElementById('editOrderId').value = order.id;
+    document.getElementById('editOrderStatus').value = order.status;
+    document.getElementById('editOrderDeadline').value = order.deadline ? order.deadline.split('T')[0] : '';
+    document.getElementById('editOrderNotes').value = order.notes || '';
+  } else {
+    document.getElementById('editOrderSection').style.display = 'none';
+  }
   
   // Этапы
   const stagesDiv = document.getElementById('orderStages');
@@ -192,7 +423,7 @@ async function viewOrder(orderId) {
   modal.style.display = 'block';
 }
 
-// Обновление этапа
+// Обновление этапа (для работника)
 window.updateStage = async function(stageId) {
   const status = document.getElementById(`stageStatus${stageId}`).value;
   await fetch(`${API_URL}/order-stages/${stageId}`, {
@@ -240,7 +471,6 @@ function drawPieChart(canvas, data) {
     ctx.closePath();
     ctx.fill();
     
-    // Метка
     const labelAngle = currentAngle + sliceAngle / 2;
     const labelX = centerX + Math.cos(labelAngle) * (radius + 40);
     const labelY = centerY + Math.sin(labelAngle) * (radius + 40);
@@ -253,165 +483,3 @@ function drawPieChart(canvas, data) {
     currentAngle += sliceAngle;
   });
 }
-
-// Модальные окна
-document.querySelectorAll('.close').forEach(btn => {
-  btn.addEventListener('click', function() {
-    document.getElementById(this.dataset.modal).style.display = 'none';
-  });
-});
-
-// Добавление клиента
-if (currentUser && currentUser.role === 'manager') {
-  document.getElementById('addClientBtn')?.addEventListener('click', () => {
-    document.getElementById('clientModal').style.display = 'block';
-  });
-  
-  document.getElementById('clientForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await fetch(`${API_URL}/clients`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        full_name: document.getElementById('clientName').value,
-        company: document.getElementById('clientCompany').value,
-        email: document.getElementById('clientEmail').value,
-        phone: document.getElementById('clientPhone').value,
-        address: document.getElementById('clientAddress').value,
-        created_by: currentUser.id
-      })
-    });
-    document.getElementById('clientModal').style.display = 'none';
-    loadClients();
-  });
-  
-  // Создание заказа
-  document.getElementById('addOrderBtn')?.addEventListener('click', async () => {
-    // Загрузить тягачи и клиентов
-    const trucksRes = await fetch(`${API_URL}/trucks`);
-    trucks = await trucksRes.json();
-    
-    // Заполнить селекты
-    const clientSelect = document.getElementById('orderClient');
-    clientSelect.innerHTML = '<option value="">Выберите клиента</option>';
-    clients.forEach(c => {
-      clientSelect.innerHTML += `<option value="${c.id}">${c.full_name} ${c.company ? '(' + c.company + ')' : ''}</option>`;
-    });
-    
-    const truckSelect = document.getElementById('orderTruck');
-    truckSelect.innerHTML = '<option value="">Выберите тягач</option>';
-    trucks.forEach(t => {
-      truckSelect.innerHTML += `<option value="${t.id}">${t.model} - ${formatPrice(t.base_price)}</option>`;
-    });
-    
-    document.getElementById('orderModal').style.display = 'block';
-  });
-  
-  // Выбор тягача загружает конфигурации
-  document.getElementById('orderTruck')?.addEventListener('change', async (e) => {
-    const truckId = e.target.value;
-    if (!truckId) return;
-    
-    const res = await fetch(`${API_URL}/configurations/${truckId}`);
-    const configs = await res.json();
-    
-    const configSelect = document.getElementById('orderConfig');
-    configSelect.innerHTML = '<option value="">Выберите конфигурацию</option>';
-    configs.forEach(c => {
-      configSelect.innerHTML += `<option value="${c.id}" data-price="${c.additional_price}">${c.name} (+${formatPrice(c.additional_price)})</option>`;
-    });
-    
-    updateOrderTotal();
-  });
-  
-  document.getElementById('orderConfig')?.addEventListener('change', updateOrderTotal);
-  
-  // Добавить запчасть
-  document.getElementById('addPartBtn')?.addEventListener('click', () => {
-    const partsList = document.getElementById('orderPartsList');
-    const partItem = document.createElement('div');
-    partItem.className = 'part-item';
-    partItem.innerHTML = `
-      <select class="part-select">
-        <option value="">Выберите запчасть</option>
-        ${parts.map(p => `<option value="${p.id}" data-price="${p.price}">${p.name} - ${formatPrice(p.price)}</option>`).join('')}
-      </select>
-      <input type="number" class="part-quantity" min="1" value="1" placeholder="Количество">
-      <button type="button" class="btn btn-delete" onclick="this.parentElement.remove(); updateOrderTotal();">Удалить</button>
-    `;
-    partsList.appendChild(partItem);
-    
-    partItem.querySelector('.part-select').addEventListener('change', updateOrderTotal);
-    partItem.querySelector('.part-quantity').addEventListener('input', updateOrderTotal);
-  });
-  
-  function updateOrderTotal() {
-    const truckId = document.getElementById('orderTruck').value;
-    const configId = document.getElementById('orderConfig').value;
-    
-    if (!truckId) return;
-    
-    const truck = trucks.find(t => t.id == truckId);
-    let total = parseFloat(truck.base_price);
-    
-    if (configId) {
-      const configOption = document.querySelector(`#orderConfig option[value="${configId}"]`);
-      total += parseFloat(configOption.dataset.price || 0);
-    }
-    
-    // Запчасти
-    document.querySelectorAll('.part-item').forEach(item => {
-      const partSelect = item.querySelector('.part-select');
-      const quantity = parseInt(item.querySelector('.part-quantity').value) || 0;
-      const selectedOption = partSelect.options[partSelect.selectedIndex];
-      if (selectedOption.value) {
-        total += parseFloat(selectedOption.dataset.price) * quantity;
-      }
-    });
-    
-    document.getElementById('orderTotal').textContent = formatPrice(total);
-  }
-  
-  // Отправка заказа
-  document.getElementById('orderForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const parts = [];
-    document.querySelectorAll('.part-item').forEach(item => {
-      const partId = item.querySelector('.part-select').value;
-      const quantity = item.querySelector('.part-quantity').value;
-      const price = item.querySelector('.part-select option:checked').dataset.price;
-      if (partId) {
-        parts.push({ part_id: partId, quantity: parseInt(quantity), price: parseFloat(price) });
-      }
-    });
-    
-    const truck = trucks.find(t => t.id == document.getElementById('orderTruck').value);
-    const configOption = document.querySelector('#orderConfig option:checked');
-    let totalPrice = parseFloat(truck.base_price) + parseFloat(configOption.dataset.price || 0);
-    parts.forEach(p => totalPrice += p.price * p.quantity);
-    
-    await fetch(`${API_URL}/orders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: document.getElementById('orderClient').value,
-        truck_id: document.getElementById('orderTruck').value,
-        configuration_id: document.getElementById('orderConfig').value,
-        total_price: totalPrice,
-        status: 'Новый',
-        deadline: document.getElementById('orderDeadline').value || null,
-        manager_id: currentUser.id,
-        notes: document.getElementById('orderNotes').value,
-        parts
-      })
-    });
-    
-    document.getElementById('orderModal').style.display = 'none';
-    loadOrders();
-    loadStats();
-  });
-}
-
-// Инициализация
-checkAuth();

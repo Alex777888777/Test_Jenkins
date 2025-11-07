@@ -169,6 +169,57 @@ async function initDatabase() {
       ON CONFLICT DO NOTHING
     `);
     
+    // Добавление тестовых клиентов
+    await client.query(`
+      INSERT INTO clients (full_name, company, email, phone, address, created_by) 
+      VALUES 
+        ('Алексей Иванов', 'ООО "ТрансЛогистик"', 'ivanov@translog.ru', '+7-905-123-4567', 'Москва, ул. Ленина, 10', 1),
+        ('Мария Петрова', 'ИП Петрова М.А.', 'petrova@mail.ru', '+7-905-234-5678', 'Санкт-Петербург, Невский пр., 50', 1),
+        ('Сергей Сидоров', 'ООО "ГрузАвто"', 'sidorov@gruzavto.ru', '+7-905-345-6789', 'Казань, пр. Победы, 25', 1),
+        ('Дмитрий Козлов', 'АО "Магистраль"', 'kozlov@magistral.ru', '+7-905-456-7890', 'Новосибирск, ул. Вокзальная, 15', 1),
+        ('Ольга Новикова', 'ООО "СибТранс"', 'novikova@sibtrans.ru', '+7-905-567-8901', 'Екатеринбург, ул. Малышева, 33', 1)
+      ON CONFLICT DO NOTHING
+    `);
+    
+    // Добавление тестовых заказов
+    const orderInserts = [
+      { number: 'ORD-2024001', client: 1, truck: 1, config: 1, price: 85000, status: 'Выполнен', deadline: '2024-01-15', notes: 'Первый заказ, доставлен вовремя' },
+      { number: 'ORD-2024002', client: 2, truck: 2, config: 4, price: 79500, status: 'В процессе', deadline: '2024-02-20', notes: 'В стадии сборки' },
+      { number: 'ORD-2024003', client: 3, truck: 1, config: 2, price: 90000, status: 'В процессе', deadline: '2024-02-25', notes: 'Ожидаем комплектующие' },
+      { number: 'ORD-2024004', client: 4, truck: 3, config: 6, price: 95000, status: 'Новый', deadline: '2024-03-10', notes: 'Новый заказ, ждет подтверждения' },
+      { number: 'ORD-2024005', client: 5, truck: 2, config: 5, price: 79500, status: 'Выполнен', deadline: '2024-01-20', notes: 'Завершен досрочно' }
+    ];
+    
+    for (const order of orderInserts) {
+      try {
+        const orderResult = await client.query(
+          `INSERT INTO orders (order_number, client_id, truck_id, configuration_id, total_price, status, deadline, manager_id, notes) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 1, $8) RETURNING id`,
+          [order.number, order.client, order.truck, order.config, order.price, order.status, order.deadline, order.notes]
+        );
+        
+        const orderId = orderResult.rows[0].id;
+        
+        // Создаем этапы для каждого заказа
+        const stages = [
+          { name: 'Подтверждение заказа', status: order.status === 'Новый' ? 'Ожидание' : 'Завершен' },
+          { name: 'Закупка компонентов', status: order.status === 'Новый' ? 'Ожидание' : order.status === 'Выполнен' ? 'Завершен' : 'В процессе' },
+          { name: 'Сборка', status: order.status === 'Выполнен' ? 'Завершен' : order.status === 'В процессе' ? 'В процессе' : 'Ожидание' },
+          { name: 'Контроль качества', status: order.status === 'Выполнен' ? 'Завершен' : 'Ожидание' },
+          { name: 'Доставка', status: order.status === 'Выполнен' ? 'Завершен' : 'Ожидание' }
+        ];
+        
+        for (const stage of stages) {
+          await client.query(
+            'INSERT INTO order_stages (order_id, stage_name, status) VALUES ($1, $2, $3)',
+            [orderId, stage.name, stage.status]
+          );
+        }
+      } catch (e) {
+        // Игнорируем дубликаты
+      }
+    }
+    
     console.log('База данных успешно инициализирована!');
     console.log('Пользователи:');
     console.log('  manager / manager123 (менеджер)');
