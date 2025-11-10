@@ -27,4 +27,4 @@ jobs:
       - name: Work_2
         run: |
           npm install -g localtunnel
-          it --port 3000
+          lt --port 3000
