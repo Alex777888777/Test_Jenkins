@@ -5,14 +5,15 @@ on:
       -main
 jobs:
   deploy:
-    runs-on: ubuntu-lstest
+    runs-on: ubuntu-latest
     steps:
       - name: Clon repo
         uses: actions/checkout@v4
-      - name: Setap Node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
            node-version: '20.x'
+           
       - name: Work
         run: pwd
       - name: w 
