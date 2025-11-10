@@ -8,6 +8,15 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    services:
+       postgres:
+          image: postgres:15
+          env: 
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: truck_crm
+          ports:
+            - 5432:5432
+           
     steps:
       - name: Clon repo
         uses: actions/checkout@v4
@@ -20,6 +29,7 @@ jobs:
         run: |
           npm install
           npm start &
+          npm run init-db
           #sleep 3
           
       - name: Work_2
