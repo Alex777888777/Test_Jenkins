@@ -18,8 +18,8 @@ jobs:
            
       - name: Work
         run: |
-             pwd
-             ls -la
-             node -v
+          pwd
+          ls -la
+          node -v
         
         
