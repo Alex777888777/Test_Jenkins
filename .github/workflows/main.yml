@@ -27,4 +27,4 @@ jobs:
       - name: Work_2
         run: |
           npm install -g localtunnel
-          localtunnel --version
+          lt --version
