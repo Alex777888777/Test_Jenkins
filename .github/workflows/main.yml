@@ -18,8 +18,9 @@ jobs:
            
       - name: Work
         run: |
-          pwd
-          ls -la
-          node -v
-        
+          npm install
+          npm start
+          sleep 3
+      - name: Work_2
+        run: curl http://localhost:3000  
         
