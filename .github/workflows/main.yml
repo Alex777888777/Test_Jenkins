@@ -19,7 +19,7 @@ jobs:
       - name: Work
         run: |
           npm install
-          npm start
+          npm start &
           sleep 3
       - name: Work_2
         run: curl http://localhost:3000  
