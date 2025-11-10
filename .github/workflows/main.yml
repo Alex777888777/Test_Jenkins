@@ -1,0 +1,24 @@
+name: Test work
+on:
+  push:
+    branches:
+      -main
+jobs:
+  deploy:
+    runs-on: ubuntu-lstest
+    steps:
+      - name: Clon repo
+        uses: actions/checkout@v4
+      - name: Setap Node
+        uses: actions/setup-node@v4
+        with:
+           node-version: '20.x'
+      - name: Work
+        run: pwd
+      - name: w 
+        run: ls -la
+      - name: Work
+        run: node -v  
+        
+        
+        
