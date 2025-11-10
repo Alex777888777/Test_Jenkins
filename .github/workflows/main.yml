@@ -15,11 +15,9 @@ jobs:
            node-version: '20.x'
            
       - name: Work
-        run: pwd
-      - name: w 
-        run: ls -la
-      - name: Work
-        run: node -v  
-        
+        run: |
+             pwd
+             ls -la
+             node -v
         
         
