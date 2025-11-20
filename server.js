@@ -43,6 +43,37 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// ============= ПОЛЬЗОВАТЕЛИ =============
+
+app.post('/api/users', async (req, res) => {
+  const { username, password, role, full_name, email } = req.body;
+  
+  try {
+    const result = await pool.query(
+      'INSERT INTO users (username, password, role, full_name, email) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [username, password, role, full_name, email]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Ошибка создания пользователя:', error);
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Логин уже существует' });
+    } else {
+      res.status(500).json({ error: 'Ошибка сервера' });
+    }
+  }
+});
+
+app.get('/api/users', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, username, role, full_name, email, created_at FROM users ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Ошибка получения пользователей:', error);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
 // ============= КЛИЕНТЫ =============
 
 app.get('/api/clients', async (req, res) => {
@@ -61,17 +92,39 @@ app.get('/api/clients', async (req, res) => {
 });
 
 app.post('/api/clients', async (req, res) => {
-  const { full_name, company, email, phone, address, created_by } = req.body;
+  const { full_name, company, email, phone, address, created_by, username, password } = req.body;
+  
+  const client = await pool.connect();
   
   try {
-    const result = await pool.query(
-      'INSERT INTO clients (full_name, company, email, phone, address, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [full_name, company, email, phone, address, created_by]
+    await client.query('BEGIN');
+    
+    // Создаем пользователя
+    const userResult = await client.query(
+      'INSERT INTO users (username, password, role, full_name, email) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [username, password, 'customer', full_name, email]
     );
-    res.status(201).json(result.rows[0]);
+    
+    const userId = userResult.rows[0].id;
+    
+    // Создаем клиента со ссылкой на пользователя
+    const clientResult = await client.query(
+      'INSERT INTO clients (full_name, company, email, phone, address, user_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [full_name, company, email, phone, address, userId, created_by]
+    );
+    
+    await client.query('COMMIT');
+    res.status(201).json(clientResult.rows[0]);
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Ошибка добавления клиента:', error);
-    res.status(500).json({ error: 'Ошибка сервера' });
+    if (error.code === '23505') {
+      res.status(400).json({ error: 'Логин уже существует' });
+    } else {
+      res.status(500).json({ error: 'Ошибка сервера' });
+    }
+  } finally {
+    client.release();
   }
 });
 
@@ -138,7 +191,7 @@ app.get('/api/orders', async (req, res) => {
     
     // Для заказчика показываем только его заказы (через client_id связанный с user_id)
     if (role === 'customer') {
-      query += ` WHERE c.id = (SELECT id FROM clients WHERE created_by = $1 LIMIT 1)`;
+      query += ` WHERE c.user_id = $1`;
       const result = await pool.query(query + ' ORDER BY o.created_at DESC', [userId]);
       return res.json(result.rows);
     }

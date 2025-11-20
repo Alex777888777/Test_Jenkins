@@ -1,3 +1,7 @@
+const API_URL = 'http://localhost:3000/api';
+let currentUser = null;
+let clients = [], trucks = [], parts = [], orders = [];
+
 // Инициализация после загрузки DOM
 document.addEventListener('DOMContentLoaded', function() {
   checkAuth();
@@ -51,21 +55,69 @@ function initManagerHandlers() {
   
   document.getElementById('clientForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    await fetch('/api/clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        full_name: document.getElementById('clientName').value,
-        company: document.getElementById('clientCompany').value,
-        email: document.getElementById('clientEmail').value,
-        phone: document.getElementById('clientPhone').value,
-        address: document.getElementById('clientAddress').value,
-        created_by: currentUser.id
-      })
-    });
-    document.getElementById('clientModal').style.display = 'none';
-    document.getElementById('clientForm').reset();
-    await loadClients();
+    try {
+      const response = await fetch(`${API_URL}/clients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          full_name: document.getElementById('clientName').value,
+          company: document.getElementById('clientCompany').value,
+          email: document.getElementById('clientEmail').value,
+          phone: document.getElementById('clientPhone').value,
+          address: document.getElementById('clientAddress').value,
+          username: document.getElementById('clientLogin').value,
+          password: document.getElementById('clientPassword').value,
+          created_by: currentUser.id
+        })
+      });
+      
+      if (response.ok) {
+        document.getElementById('clientModal').style.display = 'none';
+        document.getElementById('clientForm').reset();
+        await loadClients();
+        alert('Клиент успешно создан! Логин: ' + document.getElementById('clientLogin').value);
+      } else {
+        const error = await response.json();
+        alert('Ошибка: ' + error.error);
+      }
+    } catch (error) {
+      console.error('Ошибка:', error);
+      alert('Ошибка создания клиента');
+    }
+  });
+  
+  // Добавление сотрудника
+  document.getElementById('addEmployeeBtn').addEventListener('click', () => {
+    document.getElementById('employeeModal').style.display = 'block';
+  });
+  
+  document.getElementById('employeeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const response = await fetch(`${API_URL}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('employeeLogin').value,
+          password: document.getElementById('employeePassword').value,
+          role: document.getElementById('employeeRole').value,
+          full_name: document.getElementById('employeeName').value,
+          email: document.getElementById('employeeEmail').value
+        })
+      });
+      
+      if (response.ok) {
+        document.getElementById('employeeModal').style.display = 'none';
+        document.getElementById('employeeForm').reset();
+        alert('Сотрудник успешно добавлен!');
+      } else {
+        const error = await response.json();
+        alert('Ошибка: ' + error.error);
+      }
+    } catch (error) {
+      console.error('Ошибка:', error);
+      alert('Ошибка добавления сотрудника');
+    }
   });
   
   // Создание заказа
@@ -78,7 +130,7 @@ function initManagerHandlers() {
     const truckId = e.target.value;
     if (!truckId) return;
     
-    const res = await fetch(`/api/configurations/${truckId}`);
+    const res = await fetch(`${API_URL}/configurations/${truckId}`);
     const configs = await res.json();
     
     const configSelect = document.getElementById('orderConfig');
@@ -130,7 +182,7 @@ function initManagerHandlers() {
     let totalPrice = parseFloat(truck.base_price) + parseFloat(configOption.dataset.price || 0);
     partItems.forEach(p => totalPrice += p.price * p.quantity);
     
-    await fetch('/api/orders', {
+    await fetch(`${API_URL}/orders`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -185,7 +237,7 @@ function initModalHandlers() {
 
 // Подготовка модального окна заказа
 async function prepareOrderModal() {
-  const trucksRes = await fetch('/api/trucks');
+  const trucksRes = await fetch(`${API_URL}/trucks`);
   trucks = await trucksRes.json();
   
   const clientSelect = document.getElementById('orderClient');
@@ -232,31 +284,31 @@ function updateOrderTotal() {
 
 // Загрузка данных
 async function loadClients() {
-  const response = await fetch('/api/clients');
+  const response = await fetch(`${API_URL}/clients`);
   clients = await response.json();
   renderClients();
 }
 
 async function loadTrucks() {
-  const response = await fetch('/api/trucks');
+  const response = await fetch(`${API_URL}/trucks`);
   trucks = await response.json();
   renderTrucks();
 }
 
 async function loadParts() {
-  const response = await fetch('/api/parts');
+  const response = await fetch(`${API_URL}/parts`);
   parts = await response.json();
   renderParts();
 }
 
 async function loadOrders() {
-  const response = await fetch(`/api/orders?role=${currentUser.role}&userId=${currentUser.id}`);
+  const response = await fetch(`${API_URL}/orders?role=${currentUser.role}&userId=${currentUser.id}`);
   orders = await response.json();
   renderOrders();
 }
 
 async function loadStats() {
-  const response = await fetch('/api/stats');
+  const response = await fetch(`${API_URL}/stats`);
   const stats = await response.json();
   
   document.getElementById('totalOrders').textContent = stats.totalOrders;
@@ -348,7 +400,7 @@ function renderOrders() {
 
 // Просмотр заказа
 async function viewOrder(orderId) {
-  const response = await fetch(`/api/orders/${orderId}`);
+  const response = await fetch(`${API_URL}/orders/${orderId}`);
   const order = await response.json();
   
   const modal = document.getElementById('orderDetailModal');
@@ -422,7 +474,7 @@ async function viewOrder(orderId) {
 // Обновление этапа (для работника)
 window.updateStage = async function(stageId) {
   const status = document.getElementById(`stageStatus${stageId}`).value;
-  await fetch(`/api/order-stages/${stageId}`, {
+  await fetch(`${API_URL}/order-stages/${stageId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, assigned_to: currentUser.id })

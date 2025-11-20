@@ -36,6 +36,7 @@ async function initDatabase() {
         email VARCHAR(100),
         phone VARCHAR(20),
         address TEXT,
+        user_id INTEGER UNIQUE REFERENCES users(id),
         created_by INTEGER REFERENCES users(id),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -169,17 +170,34 @@ async function initDatabase() {
       ON CONFLICT DO NOTHING
     `);
     
-    // Добавление тестовых клиентов
-    await client.query(`
-      INSERT INTO clients (full_name, company, email, phone, address, created_by) 
-      VALUES 
-        ('Алексей Иванов', 'ООО "ТрансЛогистик"', 'ivanov@translog.ru', '+7-905-123-4567', 'Москва, ул. Ленина, 10', 1),
-        ('Мария Петрова', 'ИП Петрова М.А.', 'petrova@mail.ru', '+7-905-234-5678', 'Санкт-Петербург, Невский пр., 50', 1),
-        ('Сергей Сидоров', 'ООО "ГрузАвто"', 'sidorov@gruzavto.ru', '+7-905-345-6789', 'Казань, пр. Победы, 25', 1),
-        ('Дмитрий Козлов', 'АО "Магистраль"', 'kozlov@magistral.ru', '+7-905-456-7890', 'Новосибирск, ул. Вокзальная, 15', 1),
-        ('Ольга Новикова', 'ООО "СибТранс"', 'novikova@sibtrans.ru', '+7-905-567-8901', 'Екатеринбург, ул. Малышева, 33', 1)
-      ON CONFLICT DO NOTHING
-    `);
+    // Добавление тестовых клиентов с учетными записями
+    const testClients = [
+      { name: 'Алексей Иванов', company: 'ООО "ТрансЛогистик"', email: 'ivanov@translog.ru', phone: '+7-905-123-4567', address: 'Москва, ул. Ленина, 10', login: 'ivanov', password: 'ivanov123' },
+      { name: 'Мария Петрова', company: 'ИП Петрова М.А.', email: 'petrova@mail.ru', phone: '+7-905-234-5678', address: 'Санкт-Петербург, Невский пр., 50', login: 'petrova', password: 'petrova123' },
+      { name: 'Сергей Сидоров', company: 'ООО "ГрузАвто"', email: 'sidorov@gruzavto.ru', phone: '+7-905-345-6789', address: 'Казань, пр. Победы, 25', login: 'sidorov', password: 'sidorov123' },
+      { name: 'Дмитрий Козлов', company: 'АО "Магистраль"', email: 'kozlov@magistral.ru', phone: '+7-905-456-7890', address: 'Новосибирск, ул. Вокзальная, 15', login: 'kozlov', password: 'kozlov123' },
+      { name: 'Ольга Новикова', company: 'ООО "СибТранс"', email: 'novikova@sibtrans.ru', phone: '+7-905-567-8901', address: 'Екатеринбург, ул. Малышева, 33', login: 'novikova', password: 'novikova123' }
+    ];
+    
+    for (const testClient of testClients) {
+      try {
+        // Создаем пользователя
+        const userResult = await client.query(
+          'INSERT INTO users (username, password, role, full_name, email) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+          [testClient.login, testClient.password, 'customer', testClient.name, testClient.email]
+        );
+        
+        const userId = userResult.rows[0].id;
+        
+        // Создаем клиента
+        await client.query(
+          'INSERT INTO clients (full_name, company, email, phone, address, user_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+          [testClient.name, testClient.company, testClient.email, testClient.phone, testClient.address, userId, 1]
+        );
+      } catch (e) {
+        // Игнорируем дубликаты
+      }
+    }
     
     // Добавление тестовых заказов
     const orderInserts = [
@@ -221,10 +239,15 @@ async function initDatabase() {
     }
     
     console.log('База данных успешно инициализирована!');
-    console.log('Пользователи:');
+    console.log('\nПользователи системы:');
     console.log('  manager / manager123 (менеджер)');
     console.log('  worker / worker123 (работник)');
-    console.log('  customer / customer123 (заказчик)');
+    console.log('\nТестовые клиенты (могут заходить в систему):');
+    console.log('  ivanov / ivanov123 (Алексей Иванов)');
+    console.log('  petrova / petrova123 (Мария Петрова)');
+    console.log('  sidorov / sidorov123 (Сергей Сидоров)');
+    console.log('  kozlov / kozlov123 (Дмитрий Козлов)');
+    console.log('  novikova / novikova123 (Ольга Новикова)');
     
   } catch (error) {
     console.error('Ошибка инициализации:', error);

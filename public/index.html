@@ -50,6 +50,7 @@
         <h2>Управление</h2>
         <button id="addClientBtn" class="btn btn-primary">+ Добавить клиента</button>
         <button id="addOrderBtn" class="btn btn-primary">+ Создать заказ</button>
+        <button id="addEmployeeBtn" class="btn btn-primary">+ Добавить сотрудника</button>
         
         <h3 style="margin-top: 30px;">Тягачи</h3>
         <table id="trucksTable">
@@ -130,7 +131,51 @@
           <label>Адрес</label>
           <textarea id="clientAddress"></textarea>
         </div>
-        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <h3 style="margin-top: 20px;">Данные для входа</h3>
+        <div class="form-group">
+          <label>Логин</label>
+          <input type="text" id="clientLogin" required>
+        </div>
+        <div class="form-group">
+          <label>Пароль</label>
+          <input type="password" id="clientPassword" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Создать клиента</button>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Модальное окно для добавления сотрудника -->
+  <div id="employeeModal" class="modal">
+    <div class="modal-content">
+      <span class="close" data-modal="employeeModal">&times;</span>
+      <h2>Добавить сотрудника</h2>
+      <form id="employeeForm">
+        <div class="form-group">
+          <label>ФИО</label>
+          <input type="text" id="employeeName" required>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="employeeEmail">
+        </div>
+        <div class="form-group">
+          <label>Роль</label>
+          <select id="employeeRole" required>
+            <option value="manager">Менеджер</option>
+            <option value="worker">Работник</option>
+          </select>
+        </div>
+        <h3 style="margin-top: 20px;">Данные для входа</h3>
+        <div class="form-group">
+          <label>Логин</label>
+          <input type="text" id="employeeLogin" required>
+        </div>
+        <div class="form-group">
+          <label>Пароль</label>
+          <input type="password" id="employeePassword" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Создать сотрудника</button>
       </form>
     </div>
   </div>
