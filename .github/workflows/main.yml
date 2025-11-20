@@ -33,17 +33,17 @@ jobs:
           npm run init-db
           npm start &
           sleep 5
-      - name: Debug API data
+          
+      - name: Test login
         run: |
           sleep 5
-          echo "=== Users ==="
-          curl -s http://localhost:3000/api/users
-          echo ""
-          echo "=== Clients ==="
-          curl -s http://localhost:3000/api/clients
-          echo ""
-          echo "=== Orders ==="
-          curl -s http://localhost:3000/api/orders
+          echo "=== Testing login ==="
+          curl -X POST http://localhost:3000/api/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"manager","password":"manager123"}' \
+            -s | jq . || curl -X POST http://localhost:3000/api/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"manager","password":"manager123"}' -s
       
                 
       - name: Work_2
