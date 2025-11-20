@@ -27,11 +27,11 @@ jobs:
           
       - name: Work
         run: |
-          npm install
-          sleep 5
-          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/truck_crm
-          npm run init-db
-          npm start &
+         npm install
+          echo "Database URL: postgresql://postgres:postgres@localhost:5432/truck_crm"
+          psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "SELECT version();"
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/truck_crm npm run init-db
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/truck_crm npm start &
           sleep 3
       
       - name: Work4
