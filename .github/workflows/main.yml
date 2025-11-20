@@ -29,6 +29,7 @@ jobs:
         run: |
           npm install
           sleep 5
+          export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/truck_crm
           npm run init-db
           npm start &
           sleep 3
