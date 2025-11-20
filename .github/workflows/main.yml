@@ -28,9 +28,10 @@ jobs:
       - name: Work
         run: |
           npm install
+          sleep 5
           npm run init-db
           npm start &
-          #sleep 3
+          sleep 3
       
       - name: Work_2
         run: |
