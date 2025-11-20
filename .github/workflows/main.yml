@@ -1,0 +1,39 @@
+name: Test work
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+      
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    services:
+       postgres:
+          image: postgres:15
+          env: 
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: truck_crm
+          ports:
+            - 5432:5432
+           
+    steps:
+      - name: Clon repo
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          
+      - name: Work
+        run: |
+          npm install
+          npm run init-db
+          npm start &
+          #sleep 3
+          
+      - name: Work_2
+        run: |
+          npm install -g localtunnel
+          curl 2ip.ru
+          lt --port 3000
