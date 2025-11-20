@@ -36,6 +36,7 @@ jobs:
         run: |
          pg_isready -h localhost -p 5432 -U postgres
          psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "\l"
+         psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "\dt"
         
          
       - name: Work_2
