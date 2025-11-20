@@ -8,6 +8,14 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    services:
+       postgres:
+          image: postgres:15
+          env: 
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: truck_crm
+          ports:
+            - 5432:5432
     
     steps:
       - name: Clon repo
@@ -17,14 +25,6 @@ jobs:
         with:
           node-version: '20.x'
           
-      - name: Install and setup PostgreSQL
-        run: |
-          sudo apt update
-          sudo apt install -y postgresql postgresql-contrib
-          sudo systemctl start postgresql
-          sudo -u postgres psql -c "CREATE DATABASE truck_crm;"
-          sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"    
-
           
       - name: Work
         run: |
