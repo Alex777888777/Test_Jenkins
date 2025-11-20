@@ -28,15 +28,11 @@ jobs:
       - name: Work
         run: |
           npm install
-          sleep 2
-          export PGHOST=localhost
-          export PGPORT=5432
-          export PGDATABASE=truck_crm
-          export PGUSER=postgres
-          export PGPASSWORD=postgres
-          npm run init-db
-          npm start &
-          sleep 3
+          sleep 5
+          PGHOST=localhost PGPORT=5432 PGDATABASE=truck_crm PGUSER=postgres PGPASSWORD=postgres npm run init-db
+          PGHOST=localhost PGPORT=5432 PGDATABASE=truck_crm PGUSER=postgres PGPASSWORD=postgres node server.js &
+          sleep 5
+          curl -f http://localhost:3000/api/users || echo "API not responding"
       
       - name: Work4
         run: |
