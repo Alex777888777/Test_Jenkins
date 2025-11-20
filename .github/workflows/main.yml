@@ -33,6 +33,17 @@ jobs:
           npm run init-db
           npm start &
           sleep 5
+      - name: Debug API data
+        run: |
+          sleep 5
+          echo "=== Users ==="
+          curl -s http://localhost:3000/api/users
+          echo ""
+          echo "=== Clients ==="
+          curl -s http://localhost:3000/api/clients
+          echo ""
+          echo "=== Orders ==="
+          curl -s http://localhost:3000/api/orders
       
                 
       - name: Work_2
