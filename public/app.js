@@ -55,20 +55,28 @@ function initManagerHandlers() {
   
   document.getElementById('clientForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    
+    console.log('Current user:', currentUser);
+    console.log('User ID:', currentUser.id);
+    
     try {
+      const clientData = {
+        full_name: document.getElementById('clientName').value,
+        company: document.getElementById('clientCompany').value,
+        email: document.getElementById('clientEmail').value,
+        phone: document.getElementById('clientPhone').value,
+        address: document.getElementById('clientAddress').value,
+        username: document.getElementById('clientLogin').value,
+        password: document.getElementById('clientPassword').value,
+        created_by: currentUser.id
+      };
+      
+      console.log('Sending client data:', clientData);
+      
       const response = await fetch(`${API_URL}/clients`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          full_name: document.getElementById('clientName').value,
-          company: document.getElementById('clientCompany').value,
-          email: document.getElementById('clientEmail').value,
-          phone: document.getElementById('clientPhone').value,
-          address: document.getElementById('clientAddress').value,
-          username: document.getElementById('clientLogin').value,
-          password: document.getElementById('clientPassword').value,
-          created_by: currentUser.id
-        })
+        body: JSON.stringify(clientData)
       });
       
       if (response.ok) {

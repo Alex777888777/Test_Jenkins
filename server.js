@@ -94,10 +94,27 @@ app.get('/api/clients', async (req, res) => {
 app.post('/api/clients', async (req, res) => {
   const { full_name, company, email, phone, address, created_by, username, password } = req.body;
   
+  console.log('Received client creation request:');
+  console.log('- full_name:', full_name);
+  console.log('- username:', username);
+  console.log('- created_by:', created_by);
+  
+  // Проверяем, что created_by существует
+  if (!created_by) {
+    return res.status(400).json({ error: 'Не указан создатель клиента' });
+  }
+  
   const client = await pool.connect();
   
   try {
     await client.query('BEGIN');
+    
+    // Проверяем, что пользователь created_by существует
+    const managerCheck = await client.query('SELECT id FROM users WHERE id = $1', [created_by]);
+    if (managerCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Неверный ID менеджера' });
+    }
     
     // Создаем пользователя
     const userResult = await client.query(
@@ -106,12 +123,15 @@ app.post('/api/clients', async (req, res) => {
     );
     
     const userId = userResult.rows[0].id;
+    console.log('Created user with ID:', userId);
     
     // Создаем клиента со ссылкой на пользователя
     const clientResult = await client.query(
       'INSERT INTO clients (full_name, company, email, phone, address, user_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
       [full_name, company, email, phone, address, userId, created_by]
     );
+    
+    console.log('Created client successfully');
     
     await client.query('COMMIT');
     res.status(201).json(clientResult.rows[0]);
@@ -120,8 +140,10 @@ app.post('/api/clients', async (req, res) => {
     console.error('Ошибка добавления клиента:', error);
     if (error.code === '23505') {
       res.status(400).json({ error: 'Логин уже существует' });
+    } else if (error.code === '23503') {
+      res.status(400).json({ error: 'Неверный ID менеджера' });
     } else {
-      res.status(500).json({ error: 'Ошибка сервера' });
+      res.status(500).json({ error: 'Ошибка сервера: ' + error.message });
     }
   } finally {
     client.release();
