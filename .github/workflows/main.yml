@@ -33,7 +33,7 @@ jobs:
           npm start &
           sleep 3
       
-      - name: Work_2
+      - name: Work4
         run: |
          pg_isready -h localhost -p 5432 -U postgres
          psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "\l"
