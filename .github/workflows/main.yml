@@ -8,15 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    services:
-       postgres:
-          image: postgres:15
-          env: 
-            POSTGRES_PASSWORD: postgres
-            POSTGRES_DB: truck_crm
-          ports:
-            - 5432:5432
-           
+    
     steps:
       - name: Clon repo
         uses: actions/checkout@v4
@@ -24,24 +16,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
+
+      - name: Install and setup PostgreSQL
+        run: |
+          sudo apt update
+          sudo apt install -y postgresql postgresql-contrib
+          sudo systemctl start postgresql
+          sudo -u postgres psql -c "CREATE DATABASE truck_crm;"
+          sudo -u postgres psql -d truck_crm -c "CREATE USER truck_user WITH PASSWORD 'postgres';"
+          sudo -u postgres psql -d truck_crm -c "GRANT ALL PRIVILEGES ON DATABASE truck_crm TO truck_user;"
+          sudo -u postgres psql -d truck_crm -c "ALTER USER truck_user WITH SUPERUSER;"
           
       - name: Work
         run: |
           npm install
+          sleep 2
+          npm run init-db
+          npm start &
           sleep 5
-          PGHOST=localhost PGPORT=5432 PGDATABASE=truck_crm PGUSER=postgres PGPASSWORD=postgres npm run init-db
-          PGHOST=localhost PGPORT=5432 PGDATABASE=truck_crm PGUSER=postgres PGPASSWORD=postgres node server.js &
-          sleep 5
-          curl -f http://localhost:3000/api/users || echo "API not responding"
       
-      - name: Work4
-        run: |
-         pg_isready -h localhost -p 5432 -U postgres
-         psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "\l"
-         psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "\dt"
-         psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "SELECT username, role, full_name FROM users ORDER BY id;"
-        
-         
+                
       - name: Work_2
         run: |
           npm install -g localtunnel
