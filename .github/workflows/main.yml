@@ -37,6 +37,7 @@ jobs:
          pg_isready -h localhost -p 5432 -U postgres
          psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "\l"
          psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "\dt"
+         psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "SELECT * FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'clients';"
         
          
       - name: Work_2
