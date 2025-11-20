@@ -17,33 +17,16 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: Install and setup PostgreSQL
-        run: |
-          sudo apt update
-          sudo apt install -y postgresql postgresql-contrib
-          sudo systemctl start postgresql
-          sudo -u postgres psql -c "CREATE DATABASE truck_crm;"
-          sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
           
       - name: Work
         run: |
-          ls -la
           npm install
+          npm run build
           sleep 2
           npm run init-db
           npm start &
           sleep 5
           
-      - name: Test login
-        run: |
-          sleep 5
-          echo "=== Testing login ==="
-          curl -X POST http://localhost:3000/api/login \
-            -H "Content-Type: application/json" \
-            -d '{"username":"manager","password":"manager123"}' \
-            -s | jq . || curl -X POST http://localhost:3000/api/login \
-            -H "Content-Type: application/json" \
-            -d '{"username":"manager","password":"manager123"}' -s
       
                 
       - name: Work_2
