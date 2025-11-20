@@ -27,11 +27,15 @@ jobs:
           
       - name: Work
         run: |
-         npm install
-          echo "Database URL: postgresql://postgres:postgres@localhost:5432/truck_crm"
-          psql postgresql://postgres:postgres@localhost:5432/truck_crm -c "SELECT version();"
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/truck_crm npm run init-db
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/truck_crm npm start &
+          npm install
+          sleep 2
+          export PGHOST=localhost
+          export PGPORT=5432
+          export PGDATABASE=truck_crm
+          export PGUSER=postgres
+          export PGPASSWORD=postgres
+          npm run init-db
+          npm start &
           sleep 3
       
       - name: Work4
