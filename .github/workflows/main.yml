@@ -29,7 +29,6 @@ jobs:
       - name: Work
         run: |
           npm install
-          npm run build
           sleep 2
           npm run init-db
           npm start &
