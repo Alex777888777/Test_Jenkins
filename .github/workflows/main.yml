@@ -40,5 +40,5 @@ jobs:
         run: |
           npm install -g localtunnel
           curl 2ip.ru
-          lt --port 3000
+          lt --port 3000 &
          
